@@ -12,6 +12,7 @@ app.use('/Client', express.static(__dirname + '/Client'));
 
 //on
 server.listen(port);
+console.log("Server 1 Up and Running PORT:" +port);
 
 const TW = 128;
 const TH = 128;
