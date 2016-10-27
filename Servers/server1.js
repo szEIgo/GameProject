@@ -1,14 +1,20 @@
 ﻿var express = require('express');
 var app = express();
+var logger = require('morgan');
 var server = require('http').Server(app);
 var port = 1338;
+var session = require('express-session');
 var io = require('socket.io')(server);
+var cookieParser = require('cookie-parser');
 
 //routes
 app.get('/', function (req, res) {
-    res.sendFile(__dirname + '/Client/index.html');
+    res.sendFile(__dirname + '/Client/world1.html');
 });
 app.use('/Client', express.static(__dirname + '/Client'));
+app.use(logger('dev'));
+app.use(cookieParser());
+app.use(session({secret:"djt435ok34kjpkjaskl43kj2",resave:false,saveUnintialized: true}));
 
 //on
 server.listen(port);
