@@ -1,0 +1,762 @@
+﻿<!DOCTYPE html>
+<html>
+    <head>
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.1.0/jquery.min.js"></script>
+        <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+        <script src="https://cdn.socket.io/socket.io-1.4.5.js"></script>
+        <script src="client/js/requestanimationframe.js"></script>
+        <link href="client/main.css" rel="stylesheet" />
+        <link rel="shortcut icon" href="favicon.ico" type='image/x-icon'>
+    </head>
+    <body>
+        <div id="signin">
+            Username: <input id="username" type="text" />
+            Password: <input id="password" type="password" />
+            <br />
+            Choose Hero: 
+            <form id="heroselection" action="">
+                <input type="radio" name="hero" value="Mage"> Mage<br>
+                <input type="radio" name="hero" value="Warrior"> Warrior<br>
+                <input type="radio" name="hero" value="Priest"> Priest<br>
+<!--                <input type="radio" name="hero" value="Thief"> Thief - Not Done dont pick plz<br>
+   -->         </form>
+            Choose Realm:
+            <form id="realmselection" action="">
+                <input type="radio" name="realm" value="Aeolian"> Aeolian<br>
+                <input type="radio" name="realm" value="Dorian"> Dorian<br>
+                <input type="radio" name="realm" value="Phrygian"> Phrygian<br>
+            </form>
+            <button id="loginbtn">Login</button>
+<!--            <button id="signupbtn">Sign Up</button>
+   -->     </div>
+        <div id="game">
+            <!--GAMEBOARD-->
+            <canvas id="ctx" width="256" height="144"></canvas>
+            <canvas id="ctx2" width="256" height="144"></canvas>
+            <!--CHATUI-->
+            <div id="chat" class="chat">
+                <div id="messages" class="messages">
+                    <div>Welcome to our Game Server</div>
+                    <div>-----Use WASD for movement, and Q for first implemented ability.</div>
+                    <div>-----You can chat here. It will broadcast to all connected clients.</div>
+                </div>
+                <input id="chatinput" class="chatinput"></input>
+                <div id="chatresizer" class="ui-resizable-handle ui-resizable-ne"></div>
+            </div>
+            <div id="debug">
+                <div id="fps">FPS:</div>
+                <div id="mouse">MOUSEPOS:</div>
+                <div id="playerPOS">PLAYERPOS:</div>
+                <div id="DCXDCY">DCX/DCY:</div>
+            </div>
+            <div id="playerinfo" class="div-table">
+                <div id="playerinforesizer" class="ui-resizable-handle ui-resizable-ne"></div>
+                <div class="div-table-row">
+                    <div id="PLAYERNAME" class="div-table-col">Player:</div>
+                </div>
+                <div class="div-table-row">
+                    <div id ="PCLASS" class="div-table-col">CLASS:</div>                    
+                </div>
+                <div class="div-table-row">
+                    <div class="div-table-col">INF:</div>
+                </div>
+                <div class="div-table-row">
+                    <div id="REALM" class="div-table-col">REALM:</div>
+                </div>
+                <div class="div-table-row">
+                    <div id="HP" class="div-table-col">HP:</div>
+                </div>
+                <div class="div-table-row">
+                    <div class="div-table-col">MANA:</div>
+                </div>
+                <div class="div-table-row">
+                    <div class="div-table-col">END:</div>
+                </div>
+                <div class="div-table-row">
+                    <div id="TARGET"class="div-table-col">TARGET:</div>
+                </div>
+            </div>
+            <div id="groupinfo" class="ui-widget-content">
+                <div id="groupresizer" class="ui-resizable-handle ui-resizable-ne"></div>
+                <div>GroupMonitor</div>
+                <div>YOURNAMEGOESHERE</div>
+                <div>Group MemberA</div>
+                <div>Group MemberB</div>
+                <div>Group MemberC</div>
+                <div>Group MemberD</div>
+                <div>Group MemberE</div>
+                <div>Group MemberF</div>
+            </div>
+            <div id="target" class="ui-widget-content">
+                <div id="targetresizer" class="ui-resizable-handle ui-resizable-ne"></div>
+                <div id="targettitle">Target:</div>
+                <div id='targethp'></div>
+            </div>
+        </div>
+        <script>
+
+//INIT & GLOBALS
+            var socket = io();
+            var selfId;
+            var WIDTH = 256;
+            var HEIGHT = 144;
+            var TW = 128;
+            var TH = 128;
+            var chat = $('#chat');
+            var sprite = {};
+            var loginbtn = $('#loginbtn');
+            var ctx = document.getElementById("ctx").getContext("2d");
+            ctx.imageSmoothingEnabled = false;
+
+//SIGNIN
+
+            $('#game').hide();
+            $('#groupinfo').hide();
+            $('#playerinfo').hide();
+            loginbtn.on("click", function () {
+                var username = $('#username').val();
+                var password = $('#password').val();
+                if ($('#heroselection input:radio:checked').length == 0) {
+                    alert('Pick a hero!');
+                } else if ($('#realmselection input:radio:checked').length == 0) {
+                    alert('Pick a realm!');
+                } else if (!username || !password) {
+                    alert("Invalid username/password");
+                } else {
+                    var hero = $("input[name=hero]:checked").val();
+                    var realm = $("input[name=realm]:checked").val();
+                    socket.emit('login', {
+                        username: $('#username').val(),
+                        password: $('#password').val(),
+                        pclass: hero,
+                        realm: realm
+                    });
+                }
+            });
+            socket.on('loginresponse', function (data) {
+                if (data.success) {
+                    init();
+                    $('#signin').hide();
+                    $('#game').show();
+                    $('#groupinfo').show();
+                    $('#playerinfo').show();
+                    $('#chat').resizable({
+                        handles: {
+                            'ne': '#chatresizer'
+                        }
+                    });
+                    $('#chat').draggable({
+                        containment: "#ctx"
+                    });
+                    $('#playerinfo').resizable({
+                        handles: {
+                            'ne': '#playerinforesizer'
+                        }
+                    });
+                    $("#playerinfo").draggable({
+                        containment: "#ctx"
+                    });
+
+                    $('#groupinfo').resizable({
+                        handles: {
+                            'ne': '#groupresizer'
+                        }
+                    });
+                    $("#groupinfo").draggable({
+                        containment: "#ctx"
+                    });
+                    $('#target').resizable({
+                        handles: {
+                            'ne': '#targetresizer'
+                        }
+                    });
+                    $("#target").draggable({
+                        containment: "#ctx"
+                    });
+                } else
+                    alert("Invalid username/password.");
+            });
+//CLASSES
+            var Player = function (init) {
+                var self = {
+                    id: init.id,
+                    x: init.x,
+                    y: init.y,
+                    movUp: init.movUp,
+                    movDown: init.movDown,
+                    movLeft: init.movLeft,
+                    movRight: init.movRight,
+                    dir: init.dir,
+                    vel: init.vel,
+                    spd: init.spd,
+                    frame: init.frame,
+                    sframe: init.sframe,
+                    map: init.map,
+                    mapOverlay: init.mapOverlay,
+                    frame: init.frame,
+                    pclass: init.pclass,
+                    name: init.name,
+                    mapx: null,
+                    mapy: null,
+                    isSelected: false,
+                    realm: init.realm,
+                    dx: null,
+                    dy: null,
+                    width: init.width,
+                    height: init.height,
+                    isCasting: init.isCasting,
+                    isAttacking: init.isAttacking,
+                    ability1: init.ability1,
+                    ability2: init.ability2,
+                    ability3: init.ability3,
+                    ability4: init.ability4,
+                    status: init.status,
+                    group: null,
+                    hp: init.hp,
+                    hpMAX: init.hpMAX,
+                    isAlive: init.isAlive,
+                    target: init.target,
+                    targethp: init.targethp,
+                    gcd: init.gcd,
+                }
+                self.draw = function () {
+                    self.dx = self.x - Player.list[selfId].x + WIDTH / 2 - self.width/2;
+                    self.dy = self.y - Player.list[selfId].y + HEIGHT / 2 - self.height / 2;
+
+                    // handles archtype
+                    var source;
+                    var sh = 0; //source height
+                    if (self.pclass == 'Mage')
+                        source = sprite.mage;
+                    else if (self.pclass == 'Warrior')
+                        source = sprite.warrior;
+                    else
+                        source = sprite.priest;
+
+                    //handles movement
+                    var offset = (Math.floor(self.frame) % 8) * TW;
+                    if (!self.isAlive) {
+
+                    }
+                    else if (self.isCasting || self.isAttacking) {
+                        if (self.dir == 'right') {
+                            ctx.drawImage(source, offset, 256, TW, TH, self.dx, self.dy, TW, TH);
+                        }
+                        if (self.dir == 'left') {
+                            ctx.drawImage(source, offset, 384, TW, TH, self.dx, self.dy, TW, TH);
+                        }
+                    }
+                    else if (self.spd == 0) {
+                        if (self.dir == 'right') {
+                            ctx.drawImage(source, 0, 0, TW, TH, self.dx, self.dy, TW, TH);
+                        }
+                        if (self.dir == 'left') {
+                            ctx.drawImage(source, 0, 128, TW, TH, self.dx, self.dy, TW, TH);
+                        }
+                    }
+                    else if (self.spd > 0){
+                        if (self.dir == 'right') {
+                            ctx.drawImage(source, offset, 0, TW, TH, self.dx, self.dy, TW, TH);
+                        }
+                        if (self.dir == 'left') {
+                            ctx.drawImage(source, offset, 128, TW, TH, self.dx, self.dy, TW, TH);
+                        }
+                    }
+                    self.frame += .125;
+
+                    //handles status impairments
+                    if (self.status.slept > 0) {
+                        var sourceoffset = Math.floor(self.sframe) % 8 * TW;
+                        ctx.drawImage(sprite.status, sourceoffset, 0, TW, TH, self.dx, self.dy, TW / 2, TH / 2);
+                        self.sframe += .1;
+                    }
+                }
+                Player.list[self.id] = self;
+                return self;
+            };
+            //identification
+            Player.list = {};
+
+            var Cursor = {
+                x: null,
+                y: null,
+                width: 1, //this makes the cursor nearly invisible, for debugging turn this up
+                height: 1, //see above
+                draw: function () { //call this in debug to draw the cursor
+                    ctx.fillRect(this.x, this.y, this.width, this.height);
+                }
+            };
+
+
+//SERVERSIDE UPDATE
+            socket.on('init', function (data) {
+                if (data.selfId !== undefined)
+                    selfId = data.selfId;
+                for (var i = 0; i < data.player.length; i++) {
+                    new Player(data.player[i]);
+                }
+                loadAssets();
+            });
+            socket.on('update', function (data) {
+                for (var i = 0; i < data.player.length; i++) {
+                    var pack = data.player[i];
+                    var p = Player.list[pack.id];
+                    if (p) {
+                        if (p.x !== undefined)
+                            p.x = pack.x;
+                        if (p.y !== undefined)
+                            p.y = pack.y;
+                        if (p.dir !== undefined)
+                            p.dir = pack.dir;
+                        if (p.spd !== undefined)
+                            p.spd = pack.spd;
+                        if (p.img !== undefined)
+                            p.img = pack.img;
+                        if (p.status !== undefined)
+                            p.status = pack.status;
+                        if (p.isCasting !== undefined)
+                            p.isCasting = pack.isCasting;
+                        if (p.group !== undefined)
+                            p.group = pack.group;
+                        if (p.hp !== undefined)
+                            p.hp = pack.hp;
+                        if (p.isAlive !== undefined)
+                            p.isAlive = pack.isAlive;
+                        if (p.isAttacking !== undefined)
+                            p.isAttacking = pack.isAttacking;
+                        if (p.group !== undefined)
+                            p.group = pack.group;
+                        if (p.target !== undefined)
+                            p.target = pack.target;
+                        if (p.targethp !== undefined)
+                            p.targethp = pack.targethp;
+                    }
+                }
+            });
+            socket.on('remove', function (data) {
+                delete Player.list[data];
+            });
+
+//IMAGE LOADER
+            function loadAssets() {
+                if (selfId == null)
+                    return;
+                sprite.mage = new Image();
+                sprite.mage.src = '/client/sprites/mage.png';
+                sprite.warrior = new Image();
+                sprite.warrior.src = '/client/sprites/warrior.png';
+                sprite.priest = new Image();
+                sprite.priest.src = '/client/sprites/priest.png';
+                sprite.status = new Image();
+                sprite.status.src = '/client/sprites/status.png';
+                sprite.grass1 = new Image();
+                sprite.grass1.src = '/client/sprites/grass1.png';
+                sprite.grass2 = new Image();
+                sprite.grass2.src = '/client/sprites/grass2.png';
+                sprite.rock1 = new Image();
+                sprite.rock1.src = '/client/sprites/rock1.png';
+                sprite.shrub1 = new Image();
+                sprite.shrub1.src = '/client/sprites/shrub1.png';
+                sprite.shrub2 = new Image();
+                sprite.shrub2.src = '/client/sprites/shrub2.png';
+                sprite.stump = new Image();
+                sprite.stump.src = '/client/sprites/stump.png';
+                sprite.tree1 = new Image();
+                sprite.tree1.src = '/client/sprites/tree1.png';
+                sprite.tree2 = new Image();
+                sprite.tree2.src = '/client/sprites/tree2.png';
+                sprite.tree3 = new Image();
+                sprite.tree3.src = '/client/sprites/tree3.png';
+            }
+
+//CHAT
+            chat.printer = $('#messages', chat);
+            chat.chatinput = $('#chatinput', chat);
+            chat.height = chat.printer.height();
+            chat.preventNewScroll = false;
+            chat.scrollBottom = function() {
+                if (!chat.preventNewScroll) { // if mouse is not over printer
+                    chat.printer.stop().animate({
+                        scrollTop: chat.printer[0].scrollHeight - chat.height
+                    }, 600); // SET SCROLLER TO BOTTOM
+                }
+            }
+            chat.scrollBottom();
+            chat.postMessage = function (e) {
+                // after hitting enter but allowing new lines using shift+enter
+                if (e.which == 13 && !e.shiftKey) {
+                    e.preventDefault();
+                    var msg = chat.chatinput.val();
+
+                    //handle commands
+                    if (msg.substr(0, 1) == '/') {
+                        //handle player invitations
+                        socket.emit('command', selfId, msg);
+                        chat.chatinput[0].value = ''; // CLEAR TEXTAREA
+                        return;
+                    }
+                    
+                    //otherwise just post it to everyone
+                    if ($.trim(msg)) {
+                        socket.emit('chatMsg', Player.list[selfId].name+ ': '+msg, 'white');
+                        chat.chatinput[0].value = ''; // CLEAR TEXTAREA
+                    }
+                }
+            }
+            chat.chatinput.keyup(chat.postMessage);
+            // prevent scrolling when reading past messages
+            chat.chatinput.hover(function() {
+                    window.removeEventListener('keyup', keyinputhandler);
+                    window.removeEventListener('keydown', keyinputhandler);
+                    socket.emit('keypress', {
+                        state: 'chatting'
+                    });
+                }, function(){
+                    chat.scrollBottom(); // On mouseleave go to bottom
+                    window.addEventListener('keyup', keyinputhandler, false);
+                    window.addEventListener('keydown', keyinputhandler, false);
+                    chat.chatinput.blur();
+                }
+            );
+            //clientside logging
+            chat.log = function (message, color) {
+                //remove last element if its over 100
+                if ($("#messages > div").length > 100){
+                    $("#messages > div").first().remove();
+                }
+                chat.printer.append('<div style="color:'+color+';">' + message.replace(/\n/g, '<br>') + '</div>');
+                chat.scrollBottom();
+            }
+            //serverside logging
+            socket.on('addToChat', function (message, color) {
+                //remove last element if its over 100
+                if ($("#messages > div").length > 100) {
+                    $("#messages > div").first().remove();
+                }
+                chat.printer.append('<div style="color:'+color+';">' + message.replace(/\n/g, '<br>') + '</div>');
+                chat.scrollBottom();
+            });
+
+//RENDERING
+            function drawMap() {
+                var p = Player.list[selfId];
+                for (var j = 0; j < p.map.length; j++){
+                    for (var k = 0; k < p.map[0].length; k++) {
+                        var x = (k * TW - p.x) + (WIDTH / 2);
+                        var y = (j * TH - p.y) + (HEIGHT / 2);
+                        //this should theoretically reduce draw calls based upon your resolution
+                        if (Math.abs(x) > WIDTH || Math.abs(y) > HEIGHT)
+                            continue;
+                        if (p.map[j][k] == 0)
+                            ctx.drawImage(sprite.grass1, x, y);
+                        if (p.map[j][k] == 1)
+                            ctx.drawImage(sprite.grass2, x, y);
+                    }
+                }
+            }
+            function drawMapOverlay() {
+                var p = Player.list[selfId];
+                for (var j = 0; j < p.mapOverlay.length; j++) {
+                    for (var k = 0; k < p.mapOverlay[0].length; k++) {
+                        var x = (k * TW - p.x) + (WIDTH / 2);
+                        var y = (j * TH - p.y) + (HEIGHT / 2);
+                        if (Math.abs(x) > WIDTH || Math.abs(y) > HEIGHT)
+                            continue;
+                        if (p.mapOverlay[j][k] == 1)
+                            ctx.drawImage(sprite.shrub1,x, y);
+                        if (p.mapOverlay[j][k] == 2)
+                            ctx.drawImage(sprite.shrub2, x,y);
+                        if (p.mapOverlay[j][k] == 3)
+                            ctx.drawImage(sprite.rock1, x,y);
+                        if (p.mapOverlay[j][k] == 4)
+                            ctx.drawImage(sprite.stump, x,y);
+                        if (p.mapOverlay[j][k] == 5)
+                            ctx.drawImage(sprite.tree1, x,y);
+                        if (p.mapOverlay[j][k] == 6)
+                            ctx.drawImage(sprite.tree2, x,y);
+                        if (p.mapOverlay[j][k] == 7)
+                            ctx.drawImage(sprite.tree3, x,y);
+                    }
+                }
+            }
+            function drawPlayers() {
+                for (var i in Player.list) {
+                    Player.list[i].draw();
+                }
+            }
+            function drawLighting() {
+                //overarching lighting
+                var shadowCanvas = document.getElementById("ctx2");
+                var shadowCtx = shadowCanvas.getContext('2d');
+                shadowCanvas.width = WIDTH;
+                shadowCanvas.height = HEIGHT;
+
+                // Make it black
+                shadowCtx.fillStyle = '#000';
+
+                var width = window.innerWidth / TW;
+                var height = window.innerHeight / TH;
+                // Light Source on player
+                var p = Player.list[selfId];
+                for (var k = 0; k < p.map[0].length; k++) {
+                    for (var j = 0; j < p.map.length; j++) {
+                        var x = (k * TW - p.x) + (WIDTH / 2);
+                        var y = (j * TH - p.y) + (HEIGHT / 2);
+                        if (Math.abs(x) > WIDTH || Math.abs(y) > HEIGHT)
+                            continue;
+                        var xdif = p.dx - x;
+                        var ydif = p.dy - y;
+                        var distance = Math.sqrt((xdif * xdif) + (ydif * ydif));
+                        
+                        var opacity = distance / (WIDTH/2.5);
+
+                        shadowCtx.fillStyle = 'rgba(0,0,0,' + opacity + ')';
+                        shadowCtx.fillRect(x, y, TW, TH);
+                    }
+                }
+            }
+
+            function drawForeground() {
+
+            }
+
+
+            function render() {
+                //REQUIRED
+                if (selfId == null)
+                    return;
+
+                //DEBUG
+                //Cursor.draw();
+                //ENDDEBUG
+
+                ctx.canvas.width = WIDTH = innerWidth;
+                ctx.canvas.height = HEIGHT = innerHeight;
+                ctx.clearRect(0, 0, WIDTH, HEIGHT);
+                drawMap();
+                drawMapOverlay();
+                drawPlayers();
+                drawLighting();
+
+                //prerendered stuff goes here:
+                var shadowCanvas = document.getElementById("ctx2");
+                ctx.drawImage(shadowCanvas, WIDTH, HEIGHT);
+            }
+
+//CLIENTSIDE UPDATE
+            function update() {
+                //REQUIRED
+                if (selfId == null)
+                    return;
+
+                //DEBUG
+                var p = Player.list[selfId];
+                $('#playerPOS').html('PLAYERPOS: ' + p.x + ', ' + p.y);
+                $('#DCXDCY').html('DCX/DCY: ' + p.dx + ', ' + p.dy);
+                $('#mouse').html('MOUSEPOS: ' + Cursor.x + ', ' + Cursor.y);
+
+                //ENDDEBUG
+
+                //UI
+                $('#PLAYERNAME').html('NAME: ' +p.name);
+                $('#REALM').html('REALM: '+ p.realm);
+                if (p.target) {
+                    $('#targethp').html(p.targethp + '/' + p.target.hpMAX);
+                    if (p.target.isAlive == true) {
+                        $('#TARGET').html('TARGET: ' + p.target.name);
+                    } else {
+                        $('#TARGET').html('TARGET: ' + p.target.name + '\'s corpse');
+                    }                        
+                } else {
+                    $('#TARGET').html('TARGET: ');
+                    $('#targethp').html('');
+                }
+                
+                $('#PCLASS').html('CLASS: ' + p.pclass);
+                $('#HP').html('HP: ' + p.hp + '/' + p.hpMAX);
+                //other updates
+                //player collisions
+                //for (var i in Player.list) {
+                //    if (i == selfId)
+                //        continue;
+                //    if (isPlayerColliding(Player.list[selfId], Player.list[i])) {
+                //        socket.emit('chatMsg', Player.list[selfId].id + ' is colliding with ' + Player.list[i].id);       
+                //    }
+                //}
+            }
+
+//EVENTS
+            window.addEventListener('keydown', keyinputhandler, false);
+            window.addEventListener('keyup', keyinputhandler, false);
+            function keyinputhandler(e) {
+                //87 == W
+                //83 == S
+                //65 == A
+                //68 == D
+                //81 == Q == ability1
+                //60 == E == ability2
+                //82 == R == ability3
+                //70 == F == ability4
+                var message;
+                var red = 'red';
+                var blue = '#4c4cff';
+                var lblue = '#8EE5EE';
+                if (e.type === 'keydown') {
+                    if (e.keyCode === 87) {
+                        socket.emit('keypress', {
+                            inputId: 'up',
+                            state: true
+                        });
+                    }
+                    else if (e.keyCode === 83) {
+                        socket.emit('keypress', {
+                            inputId: 'down',
+                            state: true
+                        });
+                    }
+                    else if (e.keyCode === 65) {
+                        socket.emit('keypress', {
+                            inputId: 'left',
+                            state: true
+                        });
+                    }
+                    else if (e.keyCode === 68) {
+                        socket.emit('keypress', {
+                            inputId: 'right',
+                            state: true
+                        });
+                    } else if (e.keyCode === 81) { //q is pressed
+                        if (Player.list[selfId].target) {
+                            socket.emit('ability1', {
+                                self: Player.list[selfId],
+                                target: Player.list[selfId].target,
+                            });
+                        } else {
+                            chat.log('You must have a target to perform [' + Player.list[selfId].ability1 +'].', red);
+                        }
+                    }
+                }
+                if (e.type === 'keyup') {
+                    if (e.keyCode === 87) {
+                        socket.emit('keypress', {
+                            inputId: 'up',
+                            state: false,
+                        });
+                    }
+                    else if (e.keyCode === 83) {
+                        socket.emit('keypress', {
+                            inputId: 'down',
+                            state: false,
+                        });
+                    }
+                    else if (e.keyCode === 65) {
+                        socket.emit('keypress', {
+                            inputId: 'left',
+                            state: false,
+                        });
+                    }
+                    else if (e.keyCode === 68) {
+                        socket.emit('keypress', {
+                            inputId: 'right',
+                            state: false,
+                        });
+                    }
+                }
+            }
+            ctx.canvas.addEventListener('mousemove', setMousePosition, false);
+            function setMousePosition(e) {
+                Cursor.x = e.clientX;
+                Cursor.y = e.clientY;
+            }
+            ctx.canvas.addEventListener('click', Selection, false);
+            function Selection(e) {
+                var p = Player.list[selfId];
+                for (var i in Player.list) {
+                    if (isCursorColliding(Cursor, Player.list[i])) {
+                        socket.emit('target', {
+                            target: Player.list[i],
+                        });
+                        var message;
+                        var color = 'coral';
+                        var currentselection = 'You target [' + Player.list[i].name + ']';
+                        if (Player.list[i].realm === Player.list[selfId].realm) {
+                            message = 'You examine '+ Player.list[i].name + '. They are a member of the ' + Player.list[i].pclass+ ' class of your realm.';
+                        } else
+                            message = 'You examine '+ Player.list[i].name + '. They are a member of the enemy realm!';
+                        chat.log(currentselection, color);
+                        chat.log(message, color);
+                        break;
+                    } else {
+                        socket.emit('target', {
+                            target: ''
+                        });
+                    }
+                }
+            }
+
+//UTILITY
+            //@TYPE- boolean
+            //works only for cursor against another entity. if testing entity vs entity, use another function
+            //
+            function isCursorColliding(Cursor, entity2) {
+                var ctop    = Cursor.y;
+                var cbot    = Cursor.y + Cursor.height;
+                var cleft   = Cursor.x;
+                var cright  = Cursor.x + Cursor.width;
+
+                var e2left  = entity2.dx;
+                var e2top   = entity2.dy;
+                var e2bot   = entity2.dy + entity2.height;
+                var e2right = entity2.dx + entity2.width * .625;    //the reason for this is
+                                                                    //because the sprite width itself is actually 80px, 
+                                                                    //there is offset in the source, i'll shoot myself in the foot later
+                                                                    //i am approximating click distance so this won't be pixel perfect
+                var collision = true;    
+                //warning, blood sweat and tears here
+                if ((ctop > e2bot) || (cbot < e2top) || (cleft > e2right) || (cright < e2left))
+                    collision = false;
+                return collision;
+            }
+
+            function isPlayerColliding(entity1, entity2) {
+                if (entity1.dx == null || entity1.dy == null)
+                    return false;
+                var e1top = entity1.dy;
+                var e1bot = entity1.dy + entity1.height;
+                var e1left = entity1.dx;
+                var e1right = entity1.dx + entity1.width *.625;
+
+                var e2left = entity2.dx;
+                var e2top = entity2.dy;
+                var e2bot = entity2.dy + entity2.height;
+                var e2right = entity2.dx + entity2.width * .625;
+                var collision = true;
+
+                if ((e1top > e2bot) || (e1bot < e2top) || (e1left > e2right) || (e1right < e2left))
+                    collision = false;
+                return collision;
+            }
+
+//MAIN
+
+            function init() {
+                var previoustime = Date.now();
+                var frames = 0;
+                function main(time) {
+                    requestAnimationFrame(main);
+                    frames++;
+                    while (Date.now() - previoustime > 1000) {                  
+                        $('#fps').html('FPS:' + frames);
+                        previoustime += 1000;
+                        frames = 0;
+                    }
+                    update();
+                    render();
+                }
+                main();
+            }
+
+
+        </script>
+    </body>
+</html>
