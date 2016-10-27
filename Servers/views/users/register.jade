@@ -1,0 +1,10 @@
+extends ../layout
+
+block content
+    h1 Register
+    form(action='/users/signup, method='post')
+        fieldset
+        .field
+            label(for="userEmail")
+            .control
+                input(type="email", name="email")

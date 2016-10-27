@@ -5,14 +5,14 @@ var logger = require('morgan');
 var cookieParser = require('cookie-parser');
 var bodyParser = require('body-parser');
 var session = require('express-session');
-var port = process.env.port || 1337;
 
 
 var routes = require('./routes/index');
-var users = require('./routes/users');
+
 
 var app = express();
 
+app.listen(3000);
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
@@ -27,11 +27,11 @@ app.use(session({secret:"djt435ok34kjpkjaskl43kj2",resave:false,saveUnintialized
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', routes);
-app.use('/users', users);
+
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
-  var err = new Error('Not Found');
+  var err = new Error('Not Found - app.js');
   err.status = 404;
   next(err);
 });
@@ -45,6 +45,7 @@ if (app.get('env') === 'development') {
     res.status(err.status || 500);
     res.render('error', {
       message: err.message,
+      extra: "error from app.js",
       error: err
     });
   });
@@ -56,6 +57,7 @@ app.use(function(err, req, res, next) {
   res.status(err.status || 500);
   res.render('error', {
     message: err.message,
+    extra: "error from app.js",
     error: {}
   });
 });

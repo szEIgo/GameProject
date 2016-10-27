@@ -1,11 +1,18 @@
-﻿var express = require('express');
+var express = require('express');
 var app = express();
+var path = require('path');
 var logger = require('morgan');
 var server = require('http').Server(app);
 var port = 1338;
 var session = require('express-session');
+var bodyParser = require('body-parser');
 var io = require('socket.io')(server);
 var cookieParser = require('cookie-parser');
+
+var routes = require('./routes/index');
+
+
+
 
 //routes
 app.get('/', function (req, res) {
@@ -16,10 +23,13 @@ app.use(logger('dev'));
 app.use(cookieParser());
 app.use(session({secret:"djt435ok34kjpkjaskl43kj2",resave:false,saveUnintialized: true}));
 
+
+app.use('/', routes);
+
+
 //on
 server.listen(port);
 console.log("Server 1 Up and Running PORT:" +port);
-
 const TW = 128;
 const TH = 128;
 //player Class
