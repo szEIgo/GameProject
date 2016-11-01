@@ -1,3 +1,4 @@
+/*
 var mongoose = require('mongoose');
 var bcrypt = require('bcryptjs'),
     SALT_WORK_FACTOR = 10;
@@ -43,3 +44,4 @@ userSchema.methods.comparePassword = function(candidatePassword, callback) {
 var User = mongoose.model('myuser', userSchema);
 
 module.exports = User;
+*/
